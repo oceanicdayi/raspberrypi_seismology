@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>樹莓派 (Raspberry Pi) 實戰教學指南：從 UART 到 MPU6050 感測器</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons for premium visual feeling -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap');
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+        }
+        .scroll-smooth {
+            scroll-behavior: smooth;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 scroll-smooth transition-colors duration-300">
+
+    <!-- Header / Banner Section -->
+    <header class="bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white shadow-lg">
+        <div class="max-w-6xl mx-auto px-4 py-12 md:py-20 text-center md:text-left flex flex-col md:flex-row items-center justify-between">
+            <div class="mb-6 md:mb-0">
+                <span class="bg-red-800/50 text-red-100 text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wider">嵌入式系統入門</span>
+                <h1 class="text-3xl md:text-5xl font-black mt-3 tracking-tight">樹莓派開發筆記</h1>
+                <p class="text-rose-100 mt-2 text-lg">從 UART 終端機連線、Wi-Fi 排除到 MPU6050 感測器實作</p>
+            </div>
+            <div class="flex items-center space-x-4 bg-white/10 p-4 rounded-2xl backdrop-blur-sm border border-white/20">
+                <div class="p-3 bg-white/20 rounded-full text-white">
+                    <i data-lucide="cpu" class="w-8 h-8"></i>
+                </div>
+                <div class="text-left">
+                    <p class="text-xs text-rose-200">適用硬體版本</p>
+                    <p class="text-sm font-bold">Raspberry Pi 3 / 4 / 5</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container Grid -->
+    <div class="max-w-6xl mx-auto px-4 py-10 grid grid-cols-1 lg:grid-cols-4 gap-8">
+        
+        <!-- Sticky Left Sidebar / Outline Navigation -->
+        <aside class="lg:col-span-1">
+            <div class="sticky top-6 bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                <h3 class="font-bold text-slate-900 mb-4 flex items-center text-md border-b pb-2">
+                    <i data-lucide="book-open" class="w-5 h-5 mr-2 text-red-500"></i> 目錄大綱
+                </h3>
+                <nav class="space-y-1">
+                    <a href="#section-uart-hardware" class="block px-3 py-2 rounded-lg text-sm text-slate-600 hover:bg-slate-50 hover:text-red-500 transition font-medium">1. UART 6色線硬體接線</a>
+                    <a href="#section-driver-issue" class="block px-3 py-2 rounded-lg text-sm text-slate-600 hover:bg-slate-50 hover:text-red-500 transition font-medium">2. 解決驅動程式錯誤</a>
+                    <a href="#section-mobaxterm" class="block px-3 py-2 rounded-lg text-sm text-slate-600 hover:bg-slate-50 hover:text-red-500 transition font-medium">3. MobaXterm 設定細節</a>
+                    <a href="#section-power-warning" class="block px-3 py-2 rounded-lg text-sm text-slate-600 hover:bg-slate-50 hover:text-red-500 transition font-medium">4. 排除掉壓 (Undervoltage)</a>
+                    <a href="#section-wifi-trouble" class="block px-3 py-2 rounded-lg text-sm text-slate-600 hover:bg-slate-50 hover:text-red-500 transition font-medium">5. 終端機 Wi-Fi 設定</a>
+                    <a href="#section-mpu6050" class="block px-3 py-2 rounded-lg text-sm text-slate-600 hover:bg-slate-50 hover:text-red-500 transition font-medium">6. MPU6050 加速度計實作</a>
+                </nav>
+
+                <div class="mt-8 pt-6 border-t border-slate-100">
+                    <div class="bg-red-50 p-4 rounded-xl border border-red-100 text-xs text-red-800">
+                        <span class="font-bold flex items-center mb-1">
+                            <i data-lucide="alert-triangle" class="w-4 h-4 mr-1 text-red-600"></i> 安全小提醒
+                        </span>
+                        若樹莓派已由 Type-C 或獨立變壓器供電，切勿將 6 色線的<b>紅線 (5V)</b> 接上樹莓派，以免發生燒毀意外！
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="lg:col-span-3 space-y-12">
+            
+            <!-- SECTION 1: UART Hardware -->
+            <section id="section-uart-hardware" class="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 scroll-mt-6">
+                <div class="flex items-center space-x-3 mb-6">
+                    <span class="p-3 bg-rose-50 rounded-2xl text-rose-600"><i data-lucide="cable" class="w-6 h-6"></i></span>
+                    <h2 class="text-2xl font-bold text-slate-900">1. USB-to-TTL 6色線接線定義</h2>
+                </div>
+                
+                <p class="text-slate-600 mb-6 leading-relaxed">
+                    標準的 6 芯 FTDI (或 PL2303) 線路中，每一根杜邦線頭均帶有特定顏色代表對應訊號。在與樹莓派通訊時，<b>僅需要接 3 條線</b>即可運作：
+                </p>
+
+                <!-- Color Codes Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="flex items-center space-x-3 p-4 bg-slate-900 text-white rounded-xl">
+                        <div class="w-5 h-5 rounded-full bg-black border border-white"></div>
+                        <div>
+                            <p class="text-xs opacity-60">黑色線 (GND)</p>
+                            <p class="font-bold">接 Pin 6 (GND)</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-3 p-4 bg-slate-100 text-slate-800 rounded-xl">
+                        <div class="w-5 h-5 rounded-full bg-white border border-slate-400"></div>
+                        <div>
+                            <p class="text-xs text-slate-500">白色線 (RXD)</p>
+                            <p class="font-bold text-slate-900">接 Pin 8 (TXD / GPIO 14)</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-3 p-4 bg-emerald-50 text-emerald-900 rounded-xl border border-emerald-100">
+                        <div class="w-5 h-5 rounded-full bg-emerald-500"></div>
+                        <div>
+                            <p class="text-xs text-emerald-600">綠色線 (TXD)</p>
+                            <p class="font-bold text-emerald-800">接 Pin 10 (RXD / GPIO 15)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-yellow-50 p-4 rounded-xl border border-yellow-100 mb-6">
+                    <div class="flex items-start space-x-2">
+                        <i data-lucide="info" class="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0"></i>
+                        <p class="text-sm text-yellow-800 leading-relaxed">
+                            <b>黃色線 (RTS)</b> 與 <b>藍色線 (CTS)</b> 請直接保持懸空不接。如果是<b>紅色線 (5V)</b>，通常是懸空，僅在樹莓派沒有任何外接電源，且您打算透過筆電取電時才接到 <b>Pin 2 (5V)</b>。
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 2: Drivers Troubleshooting -->
+            <section id="section-driver-issue" class="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 scroll-mt-6">
+                <div class="flex items-center space-x-3 mb-6">
+                    <span class="p-3 bg-indigo-50 rounded-2xl text-indigo-600"><i data-lucide="wrench" class="w-6 h-6"></i></span>
+                    <h2 class="text-2xl font-bold text-slate-900">2. 解決 Windows 驅動程式錯誤</h2>
+                </div>
+
+                <p class="text-slate-600 mb-6 leading-relaxed">
+                    若系統顯示「USB-Serial Controller D 驅動程式錯誤」或「裝置無法啟動 (代碼 10)」，請依照以下方法排解：
+                </p>
+
+                <div class="space-y-4">
+                    <div class="flex items-start space-x-3 p-4 bg-slate-50 rounded-xl">
+                        <span class="bg-indigo-100 text-indigo-700 font-bold px-2.5 py-1 rounded text-xs mt-1">步驟 1</span>
+                        <div>
+                            <h4 class="font-bold text-slate-900">下載正確驅動程式</h4>
+                            <p class="text-sm text-slate-600 mt-1">
+                                前往 Prolific 官網下載適用於 Windows 的 <b>PL23XX-M_LogoDriver</b> 驅動壓縮檔（切勿下載純 SDK 包）。
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-start space-x-3 p-4 bg-slate-50 rounded-xl">
+                        <span class="bg-indigo-100 text-indigo-700 font-bold px-2.5 py-1 rounded text-xs mt-1">步驟 2</span>
+                        <div>
+                            <h4 class="font-bold text-slate-900">完整解壓縮後再執行</h4>
+                            <p class="text-sm text-slate-600 mt-1">
+                                若遇到「系統找不到指定的檔案 (0x2)」錯誤，請務必先將下載的 <b>.zip 檔全部解壓縮</b> 為普通資料夾，再在 <code>.exe</code> 檔上按右鍵選擇「以系統管理員身分執行」。
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-start space-x-3 p-4 bg-slate-50 rounded-xl">
+                        <span class="bg-indigo-100 text-indigo-700 font-bold px-2.5 py-1 rounded text-xs mt-1">步驟 3</span>
+                        <div>
+                            <h4 class="font-bold text-slate-900">終極手動降版（適合舊版晶片）</h4>
+                            <p class="text-sm text-slate-600 mt-1">
+                                開啟「裝置管理員」 ➡️ 在問題裝置按右鍵「更新驅動程式」 ➡️ 「瀏覽我的電腦以尋找驅動程式」 ➡️ 「讓我從可用清單挑選」 ➡️ <b>選擇 2014 年或更早的舊版驅動版本</b> 即可一秒排解代碼 10 的錯誤。
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 3: MobaXterm Config -->
+            <section id="section-mobaxterm" class="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 scroll-mt-6">
+                <div class="flex items-center space-x-3 mb-6">
+                    <span class="p-3 bg-amber-50 rounded-2xl text-amber-600"><i data-lucide="terminal" class="w-6 h-6"></i></span>
+                    <h2 class="text-2xl font-bold text-slate-900">3. MobaXterm 序列埠設定</h2>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <p class="text-slate-600 mb-4 leading-relaxed">
+                            驅動程式正常載入後，系統會分配一個類似 <code>COM4</code> 的通訊埠。在 MobaXterm 的 <b>Session ➡️ Serial</b> 選單中，設定數值如下：
+                        </p>
+                        <ul class="space-y-2 text-slate-700 mb-4 text-sm font-medium">
+                            <li class="flex items-center"><i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500 mr-2"></i> <b>Serial port:</b> 選擇對應的 COM（例: COM4）</li>
+                            <li class="flex items-center"><i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500 mr-2"></i> <b>Speed (bps):</b> <span class="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded ml-1 font-bold">115200</span></li>
+                            <li class="flex items-center"><i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500 mr-2"></i> Flow Control: None</li>
+                        </ul>
+                        <div class="p-3 bg-sky-50 rounded-xl border border-sky-100 text-xs text-sky-800">
+                            <b>💡 提示：</b> 剛連線進去如果是一片漆黑，請直接敲擊鍵盤 <b>Enter 鍵</b> 幾下，就會帶出樹莓派的帳號登入提示！
+                        </div>
+                    </div>
+                    <div class="bg-slate-900 text-slate-300 p-4 rounded-xl flex flex-col justify-between font-mono text-xs border border-slate-800 shadow-inner">
+                        <div>
+                            <span class="text-slate-500">// 登入終端機畫面參考範例</span>
+                            <p class="text-green-400 mt-2">Debian GNU/Linux 13 raspberry1 ttyS0</p>
+                            <p class="text-white mt-1">raspberry1 login: <span class="bg-white/20 text-white animate-pulse px-1">sysop</span></p>
+                            <p class="text-white">Password: **********</p>
+                        </div>
+                        <div class="mt-4 pt-4 border-t border-slate-800 text-slate-400">
+                            sysop@raspberry1:~ $
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 4: Power Undervoltage -->
+            <section id="section-power-warning" class="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 scroll-mt-6">
+                <div class="flex items-center space-x-3 mb-6">
+                    <span class="p-3 bg-red-50 rounded-2xl text-red-600"><i data-lucide="zap" class="w-6 h-6"></i></span>
+                    <h2 class="text-2xl font-bold text-slate-900">4. 排除掉壓警告 (Undervoltage)</h2>
+                </div>
+
+                <div class="p-4 bg-red-50 text-red-900 rounded-xl border border-red-100 mb-6 flex items-start space-x-3">
+                    <i data-lucide="alert-octagon" class="w-6 h-6 text-red-600 mt-0.5 flex-shrink-0"></i>
+                    <div>
+                        <h4 class="font-bold">警告訊息：hwmon hwmon1: Undervoltage detected!</h4>
+                        <p class="text-sm mt-1">當系統不間斷提示該訊息時，代表輸入電壓已<b>跌破 4.63V 安全底線</b>。這容易造成作業系統死機、記憶卡毀損或系統嚴重降頻。</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="border border-slate-200 p-5 rounded-2xl">
+                        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">可能的原因</span>
+                        <ul class="list-disc list-inside mt-2 text-sm text-slate-600 space-y-2">
+                            <li>不小心把 USB 6 色線的<b>紅線 (5V)</b> 接上了，並嘗試透過電腦 USB 供電。</li>
+                            <li>使用的 Type-C 電源線內阻過大、線身太長導致嚴重壓降。</li>
+                            <li>變壓器本身額定輸出功率不足（未達 5V/3A 或 5V/5A）。</li>
+                        </ul>
+                    </div>
+                    <div class="border border-red-200 bg-red-50/20 p-5 rounded-2xl">
+                        <span class="text-xs font-semibold text-red-500 uppercase tracking-wider">正確對策</span>
+                        <ul class="list-disc list-inside mt-2 text-sm text-slate-800 space-y-2">
+                            <li class="font-medium">拔掉 UART 上的紅線，僅保留 GND、RX、TX。</li>
+                            <li class="font-medium">採用樹莓派官方推薦的專用變壓器進行主體供電。</li>
+                            <li class="font-medium">使用高品質、帶有加粗純銅導體的短接 Type-C 充電線。</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 5: Wi-Fi setup -->
+            <section id="section-wifi-trouble" class="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 scroll-mt-6">
+                <div class="flex items-center space-x-3 mb-6">
+                    <span class="p-3 bg-sky-50 rounded-2xl text-sky-600"><i data-lucide="wifi" class="w-6 h-6"></i></span>
+                    <h2 class="text-2xl font-bold text-slate-900">5. 終端機 Wi-Fi 管理設定</h2>
+                </div>
+
+                <p class="text-slate-600 mb-6 leading-relaxed">
+                    在沒有顯示器時，可透過以下三種方式快速排查並連上 Wi-Fi：
+                </p>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Method 1 -->
+                    <div class="p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                        <h4 class="font-bold text-slate-900 flex items-center mb-2">
+                            <i data-lucide="layout" class="w-4 h-4 mr-2 text-sky-500"></i> nmtui 工具
+                        </h4>
+                        <p class="text-xs text-slate-500 leading-relaxed mb-4">最適合新版系統 (Bookworm+)。具備視覺化文字選單，不易打錯密碼。</p>
+                        <code class="bg-slate-900 text-slate-200 px-2 py-1 rounded block text-center font-mono text-xs">sudo nmtui</code>
+                    </div>
+
+                    <!-- Method 2 -->
+                    <div class="p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                        <h4 class="font-bold text-slate-900 flex items-center mb-2">
+                            <i data-lucide="settings" class="w-4 h-4 mr-2 text-sky-500"></i> raspi-config
+                        </h4>
+                        <p class="text-xs text-slate-500 leading-relaxed mb-4">傳統經典選單。可用於定義國家（如 TW），避免 5GHz 連線問題。</p>
+                        <code class="bg-slate-900 text-slate-200 px-2 py-1 rounded block text-center font-mono text-xs">sudo raspi-config</code>
+                    </div>
+
+                    <!-- Method 3 -->
+                    <div class="p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                        <h4 class="font-bold text-slate-900 flex items-center mb-2">
+                            <i data-lucide="terminal" class="w-4 h-4 mr-2 text-sky-500"></i> nmcli 指令
+                        </h4>
+                        <p class="text-xs text-slate-500 leading-relaxed mb-4">直接對底層進行調試。適用於連線至無密碼（Open）之公共網路。</p>
+                        <code class="bg-slate-900 text-slate-200 px-2 py-1 rounded block text-center font-mono text-xs">sudo nmcli device wifi</code>
+                    </div>
+                </div>
+
+                <!-- Open WiFi Troubleshooting -->
+                <div class="mt-6 p-4 bg-amber-50 rounded-xl border border-amber-200">
+                    <h4 class="font-bold text-amber-900 text-sm flex items-center">
+                        <i data-lucide="alert-triangle" class="w-4 h-4 mr-1 text-amber-600"></i> 連線提示：避免 "key-mgmt: property is missing" 報錯
+                    </h4>
+                    <p class="text-xs text-amber-800 mt-2 leading-relaxed">
+                        當連線如 <b>"CWA-FREE"</b> 這類不需輸入密碼的公開網路時，<b>不要</b>在 `nmcli` 指令中夾帶 <code>password "..."</code> 參數。正確指令如下：
+                    </p>
+                    <div class="mt-3 bg-slate-900 text-slate-200 p-3 rounded-lg font-mono text-xs relative flex justify-between items-center">
+                        <span>sudo nmcli device wifi connect "CWA-FREE"</span>
+                        <button onclick="copyText('sudo nmcli device wifi connect &quot;CWA-FREE&quot;')" class="text-slate-400 hover:text-white transition"><i data-lucide="copy" class="w-4 h-4"></i></button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 6: MPU6050 Acceleration / Gyro -->
+            <section id="section-mpu6050" class="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 scroll-mt-6">
+                <div class="flex items-center space-x-3 mb-6">
+                    <span class="p-3 bg-emerald-50 rounded-2xl text-emerald-600"><i data-lucide="compass" class="w-6 h-6"></i></span>
+                    <h2 class="text-2xl font-bold text-slate-900">6. MPU6050 加速度計與陀螺儀實作</h2>
+                </div>
+
+                <!-- Hardware Pinout Map -->
+                <h3 class="font-bold text-slate-800 mb-3 text-lg flex items-center"><i data-lucide="grip-vertical" class="w-4 h-4 text-emerald-500 mr-2"></i> 硬體 I2C 接線對照表</h3>
+                <div class="overflow-x-auto mb-8">
+                    <table class="w-full text-left text-sm text-slate-500 border-collapse">
+                        <thead class="bg-slate-50 text-slate-700 text-xs uppercase">
+                            <tr>
+                                <th class="py-3 px-4 border-b font-bold">MPU6050 針腳</th>
+                                <th class="py-3 px-4 border-b font-bold">樹莓派實體腳位 (Physical Pin)</th>
+                                <th class="py-3 px-4 border-b font-bold">訊號定義</th>
+                                <th class="py-3 px-4 border-b font-bold">備註</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 text-slate-700">
+                            <tr>
+                                <td class="py-3 px-4 font-bold text-emerald-600">VCC</td>
+                                <td class="py-3 px-4 font-mono">Pin 1</td>
+                                <td class="py-3 px-4 text-slate-500">3.3V Power</td>
+                                <td class="py-3 px-4 text-xs">穩定低雜訊電源輸入</td>
+                            </tr>
+                            <tr class="bg-slate-50/50">
+                                <td class="py-3 px-4 font-bold text-slate-900">GND</td>
+                                <td class="py-3 px-4 font-mono">Pin 6</td>
+                                <td class="py-3 px-4 text-slate-500">Ground</td>
+                                <td class="py-3 px-4 text-xs">共地（必須連接）</td>
+                            </tr>
+                            <tr>
+                                <td class="py-3 px-4 font-bold text-amber-600">SCL</td>
+                                <td class="py-3 px-4 font-mono">Pin 5</td>
+                                <td class="py-3 px-4 text-slate-500">I2C SCL (GPIO 3)</td>
+                                <td class="py-3 px-4 text-xs">I2C 串列時脈訊號</td>
+                            </tr>
+                            <tr class="bg-slate-50/50">
+                                <td class="py-3 px-4 font-bold text-blue-600">SDA</td>
+                                <td class="py-3 px-4 font-mono">Pin 3</td>
+                                <td class="py-3 px-4 text-slate-500">I2C SDA (GPIO 2)</td>
+                                <td class="py-3 px-4 text-xs">I2C 雙向串列資料線</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Python Code Section -->
+                <h3 class="font-bold text-slate-800 mb-3 text-lg flex items-center justify-between">
+                    <span class="flex items-center"><i data-lucide="code" class="w-4 h-4 text-emerald-500 mr-2"></i> 完整 Python 讀取程式碼</span>
+                    <button onclick="copyCode()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs px-3 py-1.5 rounded-lg flex items-center transition">
+                        <i data-lucide="copy" class="w-3.5 h-3.5 mr-1"></i> 複製程式碼
+                    </button>
+                </h3>
+
+                <!-- Real Python Codeblock -->
+                <div class="relative">
+                    <pre class="bg-slate-900 text-slate-200 p-5 rounded-2xl font-mono text-xs overflow-x-auto leading-relaxed border border-slate-800 shadow-lg"><code id="python-code">import time
+from mpu6050 import mpu6050
+
+# 初始化 MPU6050，預設 I2C 位址為 0x68
+try:
+    sensor = mpu6050(0x68)
+    print("成功初始化 MPU6050 加速度計與陀螺儀！")
+except Exception as e:
+    print(f"無法初始化感測器，請檢查接線或 I2C 位址。錯誤訊息: {e}")
+    exit()
+
+print("開始讀取資料，請按 Ctrl+C 結束程式...\n")
+
+try:
+    while True:
+        # 1. 讀取三軸加速度計資料 (單位: m/s²)
+        accelerometer_data = sensor.get_accel_data()
+        
+        # 2. 讀取三軸陀螺儀資料 (單位: deg/s)
+        gyro_data = sensor.get_gyro_data()
+        
+        # 3. 讀取晶片內部溫度計 (單位: 攝氏)
+        temp = sensor.get_temp()
+
+        # 輸出漂亮的對齊結果
+        print("=" * 50)
+        print(f"加速度 (m/s²) -> X: {accelerometer_data['x']:.2f}, Y: {accelerometer_data['y']:.2f}, Z: {accelerometer_data['z']:.2f}")
+        print(f"角速度 (deg/s) -> X: {gyro_data['x']:.2f}, Y: {gyro_data['y']:.2f}, Z: {gyro_data['z']:.2f}")
+        print(f"感測器溫度     -> {temp:.1f} °C")
+        
+        # 每一秒更新 2 次
+        time.sleep(0.5)
+
+except KeyboardInterrupt:
+    print("\n程式已由使用者手動停止。")</code></pre>
+                </div>
+
+                <!-- Verification commands -->
+                <div class="mt-6">
+                    <h4 class="font-bold text-slate-900 text-sm mb-2">執行前必要核心步驟：</h4>
+                    <div class="space-y-3 font-mono text-xs text-slate-700">
+                        <div class="p-3 bg-slate-50 rounded-lg flex justify-between items-center border border-slate-200">
+                            <span>1. 啟用 I2C: <code class="bg-slate-200 px-1.5 py-0.5 rounded text-red-600">sudo raspi-config</code> (選 Interface Options ➡️ I2C)</span>
+                        </div>
+                        <div class="p-3 bg-slate-50 rounded-lg flex justify-between items-center border border-slate-200">
+                            <span>2. 檢查裝置位址: <code class="bg-slate-200 px-1.5 py-0.5 rounded text-red-600">sudo i2cdetect -y 1</code></span>
+                        </div>
+                        <div class="p-3 bg-slate-50 rounded-lg flex justify-between items-center border border-slate-200">
+                            <span>3. 安裝函式庫: <code class="bg-slate-200 px-1.5 py-0.5 rounded text-red-600">pip install mpu6050-raspberrypi</code></span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-slate-900 text-slate-400 py-12 mt-20 border-t border-slate-800 text-center text-xs">
+        <div class="max-w-6xl mx-auto px-4">
+            <p class="mb-2">由 樹莓派與智慧感測器實作小組 整理提供</p>
+            <p class="opacity-50">&copy; 2026 樹莓派硬體通訊手冊. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- JS Actions -->
+    <script>
+        // Init Lucide Icons
+        lucide.createIcons();
+
+        // Clipboard Copy Helper
+        function copyText(text) {
+            const tempInput = document.createElement("input");
+            tempInput.value = text;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand("copy");
+            document.body.removeChild(tempInput);
+            alert("已複製指令到剪貼簿！");
+        }
+
+        // Copy Python Codeblock
+        function copyCode() {
+            const code = document.getElementById("python-code").innerText;
+            const tempInput = document.createElement("textarea");
+            tempInput.value = code;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand("copy");
+            document.body.removeChild(tempInput);
+            alert("Python 程式碼已複製到剪貼簿！");
+        }
+    </script>
+</body>
+</html>
